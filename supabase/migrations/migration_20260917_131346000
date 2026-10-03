@@ -1,0 +1,116 @@
+-- HR Signal AI :: signals, insights, ask conversations, notifications
+
+create table public.hr_signals (
+  id uuid primary key default gen_random_uuid(),
+  entity_type text not null check (entity_type in ('employee','department')),
+  entity_id uuid not null,
+  signal_type text not null check (signal_type in ('attendance_risk','performance_risk','combined_risk','task_completion_risk','attrition_risk','recruitment_capacity_risk')),
+  score numeric(5,2) not null check (score between 0 and 100),
+  severity text not null check (severity in ('low','medium','high','critical')),
+  formula_version text not null default 'risk-v1',
+  evidence jsonb not null default '{}'::jsonb,
+  explanation text,
+  evidence_quality text not null default 'moderate' check (evidence_quality in ('strong','moderate','limited','insufficient')),
+  limitations text,
+  recommendation text,
+  status text not null default 'new' check (status in ('new','reviewed','acknowledged','resolved','dismissed')),
+  detected_at timestamptz not null default now(),
+  reviewed_by uuid references auth.users(id) on delete set null,
+  reviewed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index hr_signals_entity_idx on public.hr_signals(entity_type, entity_id);
+create index hr_signals_type_idx on public.hr_signals(signal_type);
+create index hr_signals_severity_idx on public.hr_signals(severity);
+create index hr_signals_status_idx on public.hr_signals(status);
+create index hr_signals_detected_idx on public.hr_signals(detected_at desc);
+create unique index hr_signals_entity_type_version_uidx on public.hr_signals(entity_type, entity_id, signal_type, formula_version);
+
+create table public.hr_ai_insights (
+  id uuid primary key default gen_random_uuid(),
+  scope text not null check (scope in ('organization','department','employee')),
+  entity_type text check (entity_type is null or entity_type in ('employee','department')),
+  entity_id uuid,
+  category text not null,
+  title text not null,
+  summary text not null,
+  verified_evidence jsonb not null default '{}'::jsonb,
+  limitations text,
+  recommendation text,
+  confidence text not null default 'moderate' check (confidence in ('strong','moderate','limited','insufficient')),
+  generated_at timestamptz not null default now(),
+  dismissed_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index hr_ai_insights_scope_idx on public.hr_ai_insights(scope);
+create index hr_ai_insights_category_idx on public.hr_ai_insights(category);
+create index hr_ai_insights_entity_idx on public.hr_ai_insights(entity_type, entity_id);
+
+create table public.hr_ai_conversations (
+  id uuid primary key default gen_random_uuid(),
+  creator_id uuid not null references auth.users(id) on delete cascade,
+  title text not null default 'New conversation',
+  context_type text not null default 'organization' check (context_type in ('organization','department','employee')),
+  context_entity_id uuid,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index hr_ai_conversations_creator_idx on public.hr_ai_conversations(creator_id, updated_at desc);
+
+create table public.hr_ai_messages (
+  id uuid primary key default gen_random_uuid(),
+  conversation_id uuid not null references public.hr_ai_conversations(id) on delete cascade,
+  sender_type text not null check (sender_type in ('user','assistant')),
+  message text not null,
+  evidence_refs jsonb not null default '[]'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index hr_ai_messages_conversation_idx on public.hr_ai_messages(conversation_id, created_at);
+
+create table public.hr_notifications (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  title text not null,
+  body text,
+  type text not null default 'info' check (type in ('info','success','warning','critical','approval','action','import')),
+  entity_type text,
+  entity_id uuid,
+  link text,
+  read_at timestamptz,
+  created_at timestamptz not null default now()
+);
+create index hr_notifications_user_idx on public.hr_notifications(user_id, created_at desc);
+create index hr_notifications_unread_idx on public.hr_notifications(user_id) where read_at is null;
+
+create trigger hr_signals_updated_at before update on public.hr_signals for each row execute function public.hr_set_updated_at();
+create trigger hr_ai_insights_updated_at before update on public.hr_ai_insights for each row execute function public.hr_set_updated_at();
+create trigger hr_ai_conversations_updated_at before update on public.hr_ai_conversations for each row execute function public.hr_set_updated_at();
+
+grant select, insert, update, delete on public.hr_signals to authenticated;
+grant select, insert, update, delete on public.hr_ai_insights to authenticated;
+grant select, insert, update, delete on public.hr_ai_conversations to authenticated;
+grant select, insert, update, delete on public.hr_ai_messages to authenticated;
+grant select, insert, update on public.hr_notifications to authenticated;
+
+alter table public.hr_signals enable row level security;
+alter table public.hr_ai_insights enable row level security;
+alter table public.hr_ai_conversations enable row level security;
+alter table public.hr_ai_messages enable row level security;
+alter table public.hr_notifications enable row level security;
+
+create policy hr_signals_hr_all on public.hr_signals for all to authenticated using (public.hr_is_hr()) with check (public.hr_is_hr());
+create policy hr_signals_founder_select on public.hr_signals for select to authenticated using (public.hr_is_founder());
+
+create policy hr_ai_insights_hr_all on public.hr_ai_insights for all to authenticated using (public.hr_is_hr()) with check (public.hr_is_hr());
+create policy hr_ai_insights_founder_select on public.hr_ai_insights for select to authenticated using (public.hr_is_founder());
+
+create policy hr_ai_conversations_own on public.hr_ai_conversations for all to authenticated using (creator_id = auth.uid()) with check (creator_id = auth.uid());
+create policy hr_ai_conversations_founder_select on public.hr_ai_conversations for select to authenticated using (public.hr_is_founder());
+
+create policy hr_ai_messages_own on public.hr_ai_messages for all to authenticated using (exists (select 1 from public.hr_ai_conversations c where c.id = conversation_id and c.creator_id = auth.uid())) with check (exists (select 1 from public.hr_ai_conversations c where c.id = conversation_id and c.creator_id = auth.uid()));
+create policy hr_ai_messages_founder_select on public.hr_ai_messages for select to authenticated using (public.hr_is_founder());
+
+create policy hr_notifications_own on public.hr_notifications for select to authenticated using (user_id = auth.uid());
+create policy hr_notifications_own_update on public.hr_notifications for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());

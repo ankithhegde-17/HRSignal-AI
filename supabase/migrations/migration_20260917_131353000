@@ -1,0 +1,97 @@
+-- HR Signal AI :: action center, approvals, workflow events, audit log
+
+create table public.hr_actions (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  description text,
+  source_type text not null default 'manual' check (source_type in ('manual','signal','insight','recommendation','candidate_conversion','attendance_import')),
+  source_ref uuid,
+  priority text not null default 'medium' check (priority in ('low','medium','high','critical')),
+  assigned_to uuid references auth.users(id) on delete set null,
+  created_by uuid references auth.users(id) on delete set null,
+  due_date date,
+  status text not null default 'new' check (status in ('new','under_review','approval_required','approved','rejected','in_progress','resolved','failed','dismissed')),
+  sensitivity text not null default 'routine' check (sensitivity in ('routine','sensitive')),
+  approval_required boolean not null default false,
+  resolution_notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index hr_actions_status_idx on public.hr_actions(status);
+create index hr_actions_assigned_idx on public.hr_actions(assigned_to);
+create index hr_actions_priority_idx on public.hr_actions(priority);
+create index hr_actions_source_idx on public.hr_actions(source_type, source_ref);
+create index hr_actions_due_idx on public.hr_actions(due_date);
+
+create table public.hr_approvals (
+  id uuid primary key default gen_random_uuid(),
+  action_id uuid not null references public.hr_actions(id) on delete cascade,
+  requested_by uuid references auth.users(id) on delete set null,
+  approver_id uuid references auth.users(id) on delete set null,
+  decision text not null default 'pending' check (decision in ('pending','approved','rejected')),
+  decision_notes text,
+  requested_at timestamptz not null default now(),
+  decided_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index hr_approvals_action_idx on public.hr_approvals(action_id);
+create index hr_approvals_decision_idx on public.hr_approvals(decision);
+create index hr_approvals_approver_idx on public.hr_approvals(approver_id, decision);
+create unique index hr_approvals_pending_uidx on public.hr_approvals(action_id) where decision = 'pending';
+
+create table public.hr_workflow_events (
+  id uuid primary key default gen_random_uuid(),
+  action_id uuid not null references public.hr_actions(id) on delete cascade,
+  event_type text not null,
+  previous_state text,
+  new_state text,
+  triggered_by uuid references auth.users(id) on delete set null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index hr_workflow_events_action_idx on public.hr_workflow_events(action_id, created_at);
+
+create table public.hr_audit_log (
+  id uuid primary key default gen_random_uuid(),
+  actor_id uuid references auth.users(id) on delete set null,
+  actor_email text,
+  entity_type text not null,
+  entity_id uuid,
+  action text not null,
+  before_json jsonb,
+  after_json jsonb,
+  session_meta jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+create index hr_audit_log_entity_idx on public.hr_audit_log(entity_type, entity_id);
+create index hr_audit_log_actor_idx on public.hr_audit_log(actor_id);
+create index hr_audit_log_created_idx on public.hr_audit_log(created_at desc);
+
+create trigger hr_actions_updated_at before update on public.hr_actions for each row execute function public.hr_set_updated_at();
+create trigger hr_approvals_updated_at before update on public.hr_approvals for each row execute function public.hr_set_updated_at();
+
+grant select, insert, update, delete on public.hr_actions to authenticated;
+grant select, insert, update on public.hr_approvals to authenticated;
+grant select, insert on public.hr_workflow_events to authenticated;
+grant select, insert on public.hr_audit_log to authenticated;
+
+alter table public.hr_actions enable row level security;
+alter table public.hr_approvals enable row level security;
+alter table public.hr_workflow_events enable row level security;
+alter table public.hr_audit_log enable row level security;
+
+create policy hr_actions_hr_all on public.hr_actions for all to authenticated using (public.hr_is_hr()) with check (public.hr_is_hr());
+create policy hr_actions_founder_select on public.hr_actions for select to authenticated using (public.hr_is_founder());
+
+create policy hr_approvals_hr_select on public.hr_approvals for select to authenticated using (public.hr_is_hr());
+create policy hr_approvals_hr_insert on public.hr_approvals for insert to authenticated with check (public.hr_is_hr());
+create policy hr_approvals_founder_all on public.hr_approvals for all to authenticated using (public.hr_is_founder()) with check (public.hr_is_founder());
+
+create policy hr_workflow_events_hr_all on public.hr_workflow_events for all to authenticated using (public.hr_is_hr()) with check (public.hr_is_hr());
+create policy hr_workflow_events_founder_all on public.hr_workflow_events for all to authenticated using (public.hr_is_founder()) with check (public.hr_is_founder());
+
+create policy hr_audit_log_hr_select on public.hr_audit_log for select to authenticated using (public.hr_is_hr());
+create policy hr_audit_log_hr_insert on public.hr_audit_log for insert to authenticated with check (public.hr_is_hr());
+create policy hr_audit_log_founder_select on public.hr_audit_log for select to authenticated using (public.hr_is_founder());
+create policy hr_audit_log_founder_insert on public.hr_audit_log for insert to authenticated with check (public.hr_is_founder());

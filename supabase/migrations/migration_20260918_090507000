@@ -1,0 +1,49 @@
+insert into public.hr_teams (department_id, name, team_code, description, capacity)
+select d.id, s.name, s.team_code, s.description, s.capacity::int
+from (values
+  ('ENG','Platform','ENG-PLATFORM','Core platform, backend services and infrastructure.','18'),
+  ('ENG','Client Apps','ENG-CLIENT','Web and mobile product surfaces.','14'),
+  ('ENG','QA','ENG-QA','Quality assurance and release engineering.','10'),
+  ('PRD','Product Management','PRD-PM','Product strategy and delivery.','10'),
+  ('PRD','Design','PRD-DESIGN','Product design and research.','10'),
+  ('MKT','Brand','MKT-BRAND','Brand, content and creative.','9'),
+  ('MKT','Growth','MKT-GROWTH','Demand generation and lifecycle.','9'),
+  ('SLS','Enterprise','SLS-ENT','Enterprise account management.','10'),
+  ('SLS','Mid-Market','SLS-MM','Mid-market sales.','8'),
+  ('SLS','Sales Development','SLS-SDR','Pipeline generation.','6'),
+  ('FIN','FP&A','FIN-FPA','Planning, analysis and forecasting.','6'),
+  ('FIN','Controllership','FIN-CTRL','Accounting, payroll and compliance.','6'),
+  ('OPS','Workplace','OPS-WORK','Workplace and office operations.','8'),
+  ('OPS','IT Support','OPS-IT','IT operations and support.','8'),
+  ('HR','People Ops','HR-PEOPLE','People operations and culture.','9'),
+  ('HR','Talent','HR-TALENT','Recruiting and talent acquisition.','9')
+) as s(dep_code, name, team_code, description, capacity)
+join public.hr_departments d on d.code = s.dep_code
+where not exists (select 1 from public.hr_teams t where t.department_id = d.id and t.name = s.name);
+
+with teams as (
+  select department_id, id,
+         row_number() over (partition by department_id order by team_code) - 1 as ti,
+         count(*) over (partition by department_id) as tc
+  from public.hr_teams
+),
+emps as (
+  select id, department_id,
+         row_number() over (partition by department_id order by code) - 1 as rn
+  from public.hr_employees
+  where status <> 'exited' and department_id is not null and team_id is null
+)
+update public.hr_employees e
+set team_id = t.id
+from teams t
+join emps m on m.department_id = t.department_id and m.rn % t.tc = t.ti
+where e.id = m.id;
+
+with leads as (
+  select distinct on (team_id) team_id, id as lead_id
+  from public.hr_employees
+  where team_id is not null and status = 'active'
+  order by team_id, code
+)
+update public.hr_teams t set team_lead_id = l.lead_id
+from leads l where l.team_id = t.id and t.team_lead_id is null;

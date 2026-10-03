@@ -1,0 +1,80 @@
+-- HR Signal AI :: Department -> Team -> Employee hierarchy
+
+create table public.hr_teams (
+  id uuid primary key default gen_random_uuid(),
+  department_id uuid not null references public.hr_departments(id) on delete restrict,
+  name text not null,
+  team_code text not null unique,
+  description text,
+  capacity integer check (capacity is null or capacity >= 0),
+  team_lead_id uuid references public.hr_employees(id) on delete set null,
+  status text not null default 'active' check (status in ('active','archived')),
+  archived_at timestamptz,
+  archived_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint hr_teams_dept_name_unique unique (department_id, name)
+);
+create index hr_teams_department_idx on public.hr_teams(department_id);
+create index hr_teams_lead_idx on public.hr_teams(team_lead_id);
+create index hr_teams_status_idx on public.hr_teams(status);
+create trigger hr_teams_updated_at before update on public.hr_teams for each row execute function public.hr_set_updated_at();
+
+alter table public.hr_employees add column team_id uuid references public.hr_teams(id) on delete set null;
+create index hr_employees_team_idx on public.hr_employees(team_id);
+
+-- An employee's team must belong to the employee's primary department.
+create or replace function public.hr_validate_employee_team()
+returns trigger language plpgsql as $$
+declare
+  team_dept uuid;
+begin
+  if new.team_id is not null then
+    select department_id into team_dept from public.hr_teams where id = new.team_id;
+    if team_dept is null then
+      raise exception 'Team does not exist';
+    end if;
+    if new.department_id is null then
+      new.department_id := team_dept;
+    elsif new.department_id <> team_dept then
+      raise exception 'Employee cannot belong to a team from another department';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+create trigger hr_employees_team_check before insert or update of team_id, department_id on public.hr_employees for each row execute function public.hr_validate_employee_team();
+
+-- A team lead must be an active employee of the same team and department.
+create or replace function public.hr_validate_team_lead()
+returns trigger language plpgsql as $$
+declare
+  lead_dept uuid; lead_team uuid; lead_status text;
+begin
+  if new.team_lead_id is not null then
+    select department_id, team_id, status into lead_dept, lead_team, lead_status
+      from public.hr_employees where id = new.team_lead_id;
+    if lead_dept is null then
+      raise exception 'Team lead must be an existing employee';
+    end if;
+    if lead_status <> 'active' then
+      raise exception 'Team lead must be an active employee';
+    end if;
+    if lead_team is distinct from new.id then
+      raise exception 'Team lead must belong to this team';
+    end if;
+    if lead_dept is distinct from new.department_id then
+      raise exception 'Team lead must belong to the same department';
+    end if;
+  end if;
+  return new;
+end;
+$$;
+create trigger hr_teams_lead_check before insert or update of team_lead_id, department_id on public.hr_teams for each row execute function public.hr_validate_team_lead();
+
+grant select, insert, update, delete on public.hr_teams to authenticated;
+alter table public.hr_teams enable row level security;
+create policy hr_teams_hr_all on public.hr_teams for all to authenticated using (public.hr_is_hr()) with check (public.hr_is_hr());
+create policy hr_teams_founder_select on public.hr_teams for select to authenticated using (public.hr_is_founder());
+
+alter publication supabase_realtime add table public.hr_teams;

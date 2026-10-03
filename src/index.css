@@ -1,0 +1,268 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ---- Surfaces (exact palette) --------------------------------------- */
+    --background: 222 43% 97%;        /* #F5F7FB */
+    --foreground: 222 47% 11%;        /* #0F172A */
+
+    --card: 0 0% 100%;                /* #FFFFFF */
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --secondary: 210 40% 98%;         /* #F8FAFC */
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 98%;
+    --muted-foreground: 215 16% 47%;  /* #64748B */
+
+    --accent: 210 40% 98%;
+    --accent-foreground: 222 47% 11%;
+
+    --border: 214 32% 91%;            /* #E2E8F0 */
+    --input: 214 32% 91%;
+    --ring: 243 75% 59%;
+
+    /* ---- Brand: indigo / violet ------------------------------------------ */
+    --primary: 243 75% 59%;           /* #4F46E5 */
+    --primary-foreground: 0 0% 100%;
+    --primary-soft: 243 100% 97%;
+    --primary-glow: 239 84% 67%;
+
+    --insight: 262 83% 58%;           /* #7C3AED */
+    --insight-foreground: 0 0% 100%;
+    --insight-soft: 262 100% 97%;
+
+    /* ---- Workflow: cyan ---------------------------------------------------- */
+    --workflow: 189 94% 43%;          /* #06B6D4 */
+    --workflow-foreground: 0 0% 100%;
+    --workflow-soft: 187 100% 96%;
+
+    /* ---- Status -------------------------------------------------------------- */
+    --success: 160 84% 39%;           /* #10B981 */
+    --success-foreground: 0 0% 100%;
+    --success-soft: 152 81% 96%;
+
+    --warning: 32 95% 50%;            /* #F59E0B */
+    --warning-foreground: 0 0% 100%;
+    --warning-soft: 48 100% 96%;
+
+    --destructive: 347 90% 60%;       /* #F43F5E */
+    --destructive-foreground: 0 0% 100%;
+    --destructive-soft: 356 100% 97%;
+
+    --info: 221 83% 53%;
+    --info-foreground: 0 0% 100%;
+    --info-soft: 214 95% 97%;
+
+    /* ---- Sidebar: refined deep navy with an indigo tint -------------------- */
+    --sidebar-background: 221 39% 11%; /* #111827 */
+    --sidebar-secondary: 226 57% 21%; /* #172554 */
+    --sidebar-foreground: 214 32% 91%;
+    --sidebar-primary: 243 75% 62%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 226 57% 21%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 219 38% 22%;
+    --sidebar-muted: 214 22% 78%;
+    --sidebar-ring: 243 75% 62%;
+
+    /* ---- Charts ---------------------------------------------------------------- */
+    --chart-1: 243 75% 59%;
+    --chart-2: 262 83% 58%;
+    --chart-3: 189 94% 43%;
+    --chart-4: 160 84% 39%;
+    --chart-5: 32 95% 50%;
+    --chart-6: 347 90% 60%;
+
+    /* ---- Geometry ----------------------------------------------------------------- */
+    --radius: 0.625rem; /* controls ≈ 10px */
+    --sidebar-width: 15.5rem; /* 248px expanded rail */
+    --sidebar-width-collapsed: 4.5rem; /* 72px collapsed rail */
+    --header-height: 4rem;
+    --page-max-width: 96rem;
+
+    /* ---- Elevation ------------------------------------------------------------------ */
+    --shadow-elegant: 0 10px 30px -12px hsl(var(--primary) / 0.35);
+    --shadow-card: 0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06);
+    --shadow-raised: 0 8px 24px -8px rgb(15 23 42 / 0.12), 0 2px 6px -2px rgb(15 23 42 / 0.06);
+    --shadow-glass: 0 12px 32px -12px rgb(15 23 42 / 0.14);
+
+    /* ---- Glass ------------------------------------------------------------------------ */
+    --glass-blur: 14px;
+
+    /* ---- Motion -------------------------------------------------------------------------- */
+    --transition-smooth: all 0.18s ease-out;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  .hr-brand-gradient {
+    background-image: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--insight)) 100%);
+  }
+
+  .hr-insight-gradient {
+    background-image: linear-gradient(135deg, hsl(var(--insight)) 0%, hsl(var(--primary)) 100%);
+  }
+
+  /* Selective, consistent gradients (never per-card rainbow). */
+  .btn-gradient-primary {
+    background-image: linear-gradient(135deg, #4f46e5, #7c3aed);
+  }
+  .ai-gradient {
+    background-image: linear-gradient(135deg, #6366f1, #a855f7);
+  }
+  .workflow-gradient {
+    background-image: linear-gradient(135deg, #0891b2, #4f46e5);
+  }
+  .positive-gradient {
+    background-image: linear-gradient(135deg, #10b981, #14b8a6);
+  }
+  /* Very subtle indigo-to-cyan tint for the translucent header. */
+  .header-tint {
+    background-image: linear-gradient(90deg, rgb(99 102 241 / 0.06), rgb(6 182 212 / 0.05));
+  }
+
+  .hr-subtle-gradient {
+    background-image: linear-gradient(180deg, hsl(var(--card)) 0%, hsl(var(--muted) / 0.5) 100%);
+  }
+
+  .hr-scroll-area {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+
+  .hr-scroll-area::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .hr-scroll-area::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 9999px;
+  }
+
+  /* ---- Glass surfaces (selective) ---------------------------------------- */
+  .glass {
+    background: hsl(0 0% 100% / 0.72);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    backdrop-filter: blur(var(--glass-blur)) saturate(1.4);
+    border-color: hsl(0 0% 100% / 0.65);
+  }
+
+  /* Readable glass for dialogs and panels that sit over darker content. */
+  .glass-solid {
+    background: hsl(0 0% 100% / 0.88);
+    -webkit-backdrop-filter: blur(18px) saturate(1.3);
+    backdrop-filter: blur(18px) saturate(1.3);
+    border-color: hsl(0 0% 100% / 0.7);
+  }
+
+  /* Solid fallback for browsers without backdrop-filter. */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass {
+      background: hsl(0 0% 100% / 0.98);
+    }
+    .glass-solid {
+      background: hsl(0 0% 100% / 0.99);
+    }
+  }
+
+  /* ---- Sidebar: translucent navy/indigo rail ----------------------------- */
+  .hr-sidebar {
+    background: hsl(221 39% 11% / 0.92);
+    -webkit-backdrop-filter: blur(18px) saturate(1.2);
+    backdrop-filter: blur(18px) saturate(1.2);
+  }
+
+  .hr-sidebar svg {
+    display: block;
+    flex-shrink: 0;
+    visibility: visible;
+    stroke: currentColor;
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .hr-sidebar {
+      background: hsl(221 39% 11%);
+    }
+  }
+
+  /* ---- Active navigation: indigo → violet gradient + subtle glow --------- */
+  .nav-active {
+    background-image: linear-gradient(135deg, hsl(243 75% 55%), hsl(262 80% 50%));
+    color: hsl(0 0% 100%);
+    box-shadow: 0 4px 14px -4px hsl(243 75% 55% / 0.45);
+  }
+
+  .nav-active:hover {
+    background-image: linear-gradient(135deg, hsl(243 75% 58%), hsl(262 80% 54%));
+    color: hsl(0 0% 100%);
+  }
+
+  /* ---- Radius scale: controls 10px, cards 16px, large panels 20px -------- */
+  .rounded-card {
+    border-radius: 1rem;
+  }
+
+  .rounded-panel {
+    border-radius: 1.25rem;
+  }
+
+  /* ---- Typography scale --------------------------------------------------- */
+  .text-page-title {
+    font-size: 2rem;
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+
+  .text-section-title {
+    font-size: 1.375rem;
+    line-height: 1.25;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  min-height: 100%;
+}
+
+body {
+  overflow-x: hidden;
+}

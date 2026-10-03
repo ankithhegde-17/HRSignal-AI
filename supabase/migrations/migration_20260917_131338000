@@ -1,0 +1,110 @@
+-- HR Signal AI :: recruitment (requisitions, candidates, interviews, internships)
+
+create table public.hr_job_requisitions (
+  id uuid primary key default gen_random_uuid(),
+  department_id uuid references public.hr_departments(id) on delete set null,
+  job_title text not null,
+  description text,
+  employment_type text not null default 'full-time' check (employment_type in ('intern','full-time','part-time','contract')),
+  openings integer not null default 1 check (openings > 0),
+  recruiter_id uuid references auth.users(id) on delete set null,
+  status text not null default 'open' check (status in ('draft','open','on_hold','closed','cancelled')),
+  open_date date,
+  target_close_date date,
+  close_date date,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index hr_requisitions_department_idx on public.hr_job_requisitions(department_id);
+create index hr_requisitions_status_idx on public.hr_job_requisitions(status);
+create index hr_requisitions_recruiter_idx on public.hr_job_requisitions(recruiter_id);
+
+create table public.hr_candidates (
+  id uuid primary key default gen_random_uuid(),
+  requisition_id uuid references public.hr_job_requisitions(id) on delete set null,
+  full_name text not null,
+  email text,
+  phone text,
+  resume_path text,
+  source text,
+  current_stage text not null default 'applied' check (current_stage in ('applied','screening','interview','internship','full_time_offer','hired')),
+  status text not null default 'active' check (status in ('active','on_hold','rejected','withdrawn','offer_declined','internship_completed_not_converted')),
+  applied_date date not null default current_date,
+  recruiter_id uuid references auth.users(id) on delete set null,
+  rating integer check (rating is null or rating between 1 and 5),
+  notes text,
+  linked_employee_id uuid references public.hr_employees(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index hr_candidates_requisition_idx on public.hr_candidates(requisition_id);
+create index hr_candidates_stage_idx on public.hr_candidates(current_stage);
+create index hr_candidates_status_idx on public.hr_candidates(status);
+create index hr_candidates_recruiter_idx on public.hr_candidates(recruiter_id);
+create index hr_candidates_linked_employee_idx on public.hr_candidates(linked_employee_id);
+create index hr_candidates_name_idx on public.hr_candidates(lower(full_name));
+
+create table public.hr_interviews (
+  id uuid primary key default gen_random_uuid(),
+  candidate_id uuid not null references public.hr_candidates(id) on delete cascade,
+  interview_type text not null default 'screening' check (interview_type in ('screening','technical','managerial','hr','panel','final')),
+  interviewer_id uuid references auth.users(id) on delete set null,
+  scheduled_at timestamptz,
+  completed_at timestamptz,
+  rating integer check (rating is null or rating between 1 and 5),
+  feedback text,
+  recommendation text check (recommendation is null or recommendation in ('strong_hire','hire','hold','no_hire')),
+  status text not null default 'scheduled' check (status in ('scheduled','completed','cancelled','no_show')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index hr_interviews_candidate_idx on public.hr_interviews(candidate_id);
+create index hr_interviews_scheduled_idx on public.hr_interviews(scheduled_at desc);
+create index hr_interviews_status_idx on public.hr_interviews(status);
+
+create table public.hr_internships (
+  id uuid primary key default gen_random_uuid(),
+  candidate_id uuid not null references public.hr_candidates(id) on delete cascade,
+  employee_id uuid references public.hr_employees(id) on delete set null,
+  department_id uuid references public.hr_departments(id) on delete set null,
+  start_date date not null default current_date,
+  planned_end_date date,
+  actual_end_date date,
+  supervisor_id uuid references auth.users(id) on delete set null,
+  status text not null default 'active' check (status in ('active','completed','terminated','converted')),
+  evaluation text,
+  conversion_decision text check (conversion_decision is null or conversion_decision in ('pending','convert','not_converted')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index hr_internships_candidate_idx on public.hr_internships(candidate_id);
+create index hr_internships_employee_idx on public.hr_internships(employee_id);
+create index hr_internships_department_idx on public.hr_internships(department_id);
+create unique index hr_internships_candidate_active_uidx on public.hr_internships(candidate_id) where status = 'active';
+
+create trigger hr_requisitions_updated_at before update on public.hr_job_requisitions for each row execute function public.hr_set_updated_at();
+create trigger hr_candidates_updated_at before update on public.hr_candidates for each row execute function public.hr_set_updated_at();
+create trigger hr_interviews_updated_at before update on public.hr_interviews for each row execute function public.hr_set_updated_at();
+create trigger hr_internships_updated_at before update on public.hr_internships for each row execute function public.hr_set_updated_at();
+
+grant select, insert, update, delete on public.hr_job_requisitions to authenticated;
+grant select, insert, update, delete on public.hr_candidates to authenticated;
+grant select, insert, update, delete on public.hr_interviews to authenticated;
+grant select, insert, update, delete on public.hr_internships to authenticated;
+
+alter table public.hr_job_requisitions enable row level security;
+alter table public.hr_candidates enable row level security;
+alter table public.hr_interviews enable row level security;
+alter table public.hr_internships enable row level security;
+
+create policy hr_requisitions_hr_all on public.hr_job_requisitions for all to authenticated using (public.hr_is_hr()) with check (public.hr_is_hr());
+create policy hr_requisitions_founder_select on public.hr_job_requisitions for select to authenticated using (public.hr_is_founder());
+
+create policy hr_candidates_hr_all on public.hr_candidates for all to authenticated using (public.hr_is_hr()) with check (public.hr_is_hr());
+create policy hr_candidates_founder_select on public.hr_candidates for select to authenticated using (public.hr_is_founder());
+
+create policy hr_interviews_hr_all on public.hr_interviews for all to authenticated using (public.hr_is_hr()) with check (public.hr_is_hr());
+create policy hr_interviews_founder_select on public.hr_interviews for select to authenticated using (public.hr_is_founder());
+
+create policy hr_internships_hr_all on public.hr_internships for all to authenticated using (public.hr_is_hr()) with check (public.hr_is_hr());
+create policy hr_internships_founder_select on public.hr_internships for select to authenticated using (public.hr_is_founder());

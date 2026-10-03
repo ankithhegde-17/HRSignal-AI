@@ -1,0 +1,109 @@
+-- HR Signal AI :: workforce master data (tables, then role helpers, then policies)
+
+create or replace function public.hr_set_updated_at()
+returns trigger language plpgsql as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create table public.hr_profiles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique references auth.users(id) on delete cascade,
+  full_name text not null,
+  email text not null unique,
+  role text not null check (role in ('founder','hr')),
+  avatar_url text,
+  phone text,
+  is_active boolean not null default true,
+  last_login_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table public.hr_departments (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  name text not null,
+  description text,
+  head_employee_id uuid,
+  capacity integer check (capacity is null or capacity >= 0),
+  is_active boolean not null default true,
+  created_by uuid references auth.users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table public.hr_employees (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  full_name text not null,
+  work_email text,
+  personal_email text,
+  phone text,
+  avatar_url text,
+  department_id uuid references public.hr_departments(id) on delete set null,
+  manager_id uuid references public.hr_employees(id) on delete set null,
+  job_title text,
+  employment_type text not null default 'full-time' check (employment_type in ('intern','full-time','part-time','contract')),
+  work_mode text not null default 'onsite' check (work_mode in ('onsite','remote','hybrid')),
+  location text,
+  joining_date date,
+  exit_date date,
+  status text not null default 'active' check (status in ('active','notice period','on leave','exited')),
+  skills text[] not null default '{}',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.hr_departments
+  add constraint hr_departments_head_employee_fk foreign key (head_employee_id) references public.hr_employees(id) on delete set null;
+
+create or replace function public.hr_user_role()
+returns text language sql stable security definer set search_path = public as $$
+  select p.role from public.hr_profiles p where p.user_id = auth.uid() and p.is_active = true limit 1;
+$$;
+
+create or replace function public.hr_is_hr()
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce(public.hr_user_role() = 'hr', false);
+$$;
+
+create or replace function public.hr_is_founder()
+returns boolean language sql stable security definer set search_path = public as $$
+  select coalesce(public.hr_user_role() = 'founder', false);
+$$;
+
+create trigger hr_profiles_updated_at before update on public.hr_profiles for each row execute function public.hr_set_updated_at();
+create trigger hr_departments_updated_at before update on public.hr_departments for each row execute function public.hr_set_updated_at();
+create trigger hr_employees_updated_at before update on public.hr_employees for each row execute function public.hr_set_updated_at();
+
+create index hr_profiles_role_idx on public.hr_profiles(role);
+create index hr_departments_name_idx on public.hr_departments(name);
+create unique index hr_employees_work_email_uidx on public.hr_employees (lower(work_email)) where work_email is not null;
+create index hr_employees_department_idx on public.hr_employees(department_id);
+create index hr_employees_manager_idx on public.hr_employees(manager_id);
+create index hr_employees_status_idx on public.hr_employees(status);
+create index hr_employees_work_mode_idx on public.hr_employees(work_mode);
+create index hr_employees_employment_type_idx on public.hr_employees(employment_type);
+create index hr_employees_joining_idx on public.hr_employees(joining_date);
+create index hr_employees_exit_idx on public.hr_employees(exit_date);
+
+grant select on public.hr_profiles to authenticated;
+grant update (full_name, avatar_url, phone, last_login_at) on public.hr_profiles to authenticated;
+grant select, insert, update, delete on public.hr_departments to authenticated;
+grant select, insert, update, delete on public.hr_employees to authenticated;
+
+alter table public.hr_profiles enable row level security;
+alter table public.hr_departments enable row level security;
+alter table public.hr_employees enable row level security;
+
+create policy hr_profiles_select on public.hr_profiles for select to authenticated using (true);
+create policy hr_profiles_update_self on public.hr_profiles for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+create policy hr_departments_hr_all on public.hr_departments for all to authenticated using (public.hr_is_hr()) with check (public.hr_is_hr());
+create policy hr_departments_founder_select on public.hr_departments for select to authenticated using (public.hr_is_founder());
+
+create policy hr_employees_hr_all on public.hr_employees for all to authenticated using (public.hr_is_hr()) with check (public.hr_is_hr());
+create policy hr_employees_founder_select on public.hr_employees for select to authenticated using (public.hr_is_founder());

@@ -1,0 +1,17 @@
+-- HR Signal AI :: realtime publication for live-updating interfaces
+
+alter publication supabase_realtime add table public.hr_employees;
+alter publication supabase_realtime add table public.hr_departments;
+alter publication supabase_realtime add table public.hr_attendance;
+alter publication supabase_realtime add table public.hr_attendance_imports;
+alter publication supabase_realtime add table public.hr_tasks;
+alter publication supabase_realtime add table public.hr_performance_reviews;
+alter publication supabase_realtime add table public.hr_job_requisitions;
+alter publication supabase_realtime add table public.hr_candidates;
+alter publication supabase_realtime add table public.hr_internships;
+alter publication supabase_realtime add table public.hr_signals;
+alter publication supabase_realtime add table public.hr_ai_insights;
+alter publication supabase_realtime add table public.hr_actions;
+alter publication supabase_realtime add table public.hr_approvals;
+alter publication supabase_realtime add table public.hr_workflow_events;
+alter publication supabase_realtime add table public.hr_notifications;
